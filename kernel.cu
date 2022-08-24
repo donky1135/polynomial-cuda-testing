@@ -1,4 +1,4 @@
-﻿#include <array>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -20,13 +20,13 @@ void stopTimer(std::chrono::time_point<std::chrono::system_clock> start) {
 	printf("time elapsed: %lld milliseconds (%lld seconds)\n", milliseconds.count(), seconds.count());
 }
 
-__global__ void polyEvalKern(int* buckets, uint64_t* primes, int n) {
+__global__ void polyEvalKern(int* buckets, uint64_t* primes, int n, int64_t a) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	int stride = blockDim.x * gridDim.x;
 	int c = 0;
 	if (i < n) {
 		for (uint64_t j = 1; j < primes[i]; j++) {
-			if (((j * j * j -3*j -1) % primes[i]) == 0)
+			if (((j * j * j -a*j -1) % primes[i]) == 0)
 				c++;
 		}
 		 
@@ -37,7 +37,7 @@ __global__ void polyEvalKern(int* buckets, uint64_t* primes, int n) {
 
 }
 
-void polynomialEval(int* buckets, uint64_t* primes, int n) {
+void polynomialEval(int* buckets, uint64_t* primes, int n, int64_t a) {
 	int size = n * sizeof(uint64_t);
 	uint64_t* d_primes;
 	cudaError_t code0 = cudaMalloc((void**)&d_primes, size);
@@ -57,7 +57,7 @@ void polynomialEval(int* buckets, uint64_t* primes, int n) {
 	//	printf("2 the copy was unsucessful\n %s\n", cudaGetErrorString(code2));
 	//}
 
-	polyEvalKern << <ceil(n / 256.0), 256 >> > (d_buckets, d_primes, n);
+	polyEvalKern << <ceil(n / 256.0), 256 >> > (d_buckets, d_primes, n, a);
 	cudaDeviceSynchronize();
 
 	cudaError_t code3 = cudaMemcpy(buckets, d_buckets, 3 * sizeof(int), cudaMemcpyDeviceToHost);
@@ -99,14 +99,16 @@ int main(int argc, char* argv[])
 	printf("lines: %zu\n", primes.size());
 //  primes.resize(n);
 
-	auto start = std::chrono::system_clock::now();
+	//auto start = std::chrono::system_clock::now();
 
-	polynomialEval(buckets, primes.data(), primes.size());
+  for(int64_t i = 0; i < 11; i++){
+	polynomialEval(buckets, primes.data(), primes.size(), i);
 
-	stopTimer(start);
-	for (auto& b : buckets)
-		cout << b << " ";
-	cout << endl;
-
+    //stopTimer(start);
+    for (auto& b : buckets)
+      cout << b << " ";
+    cout << endl;
+  memset(buckets, 0, 3*sizeof(int));
+  }
 
 }
